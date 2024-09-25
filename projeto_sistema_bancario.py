@@ -71,7 +71,7 @@ class SistemaBancario:
         return True  
 
     def executar(self):
-        # Loop principal do sistema
+        
         while True:
             if not self.operacao(self.menu()):
                 break
