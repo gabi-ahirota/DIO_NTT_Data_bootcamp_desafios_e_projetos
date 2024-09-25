@@ -1,112 +1,209 @@
 from datetime import datetime
+import random
+
+class ValidacaoCPF:
+    def __init__(self, cpf):
+        self.cpf = cpf
+
+    def validar(self):
+        cpf = ''.join(filter(str.isdigit, self.cpf)) 
+        if len(cpf) != 11 or not cpf.isdigit():
+            return False
+        if cpf == cpf[0] * len(cpf): 
+            return False
+       
+        soma = 0
+        for i in range(9):
+            soma += int(cpf[i]) * (10 - i)
+        resto = soma % 11
+        digito1 = 0 if resto < 2 else 11 - resto
+
+        soma = 0
+        for i in range(10):
+            soma += int(cpf[i]) * (11 - i)
+        resto = soma % 11
+        digito2 = 0 if resto < 2 else 11 - resto
+
+        return cpf[-2:] == f"{digito1}{digito2}"
 
 class SistemaBancario:
     def __init__(self):
-        self.bd_clientes = {}
-        self.limite_saques = 10
-        self.numero_saques = 0  
-        self.lista = []
+        self.bd_clientes = {}  
+        self.bd_contas = {}  
+        self.transacoes = {}
+        self.numero_saques = {}
+        self.AGENCIA = "0001"
+        self.cpf_usuario_atual = None 
 
     def menu(self):
-        while True:
-            opcao = input("Selecione a opção desejada: \n [C]adastro_cliente \n [S]aque \n [E]xtrato \n [D]eposito \n [L]istar Clientes \n [Q]uit \n").upper()
-            return opcao
+        opcao = input("""\n
+        ============== MENU ===============\n
+        [l]\tLogin
+        [c]\tCadastrar usuário
+        [s]\tSacar
+        [d]\tDepositar
+        [e]\tExtrato
+        [nc]\tCriar conta
+        [lu]\tListar usuarios
+        [lc]\tListar contas      
+        [q]\tSair
+        => """)
+        return opcao
 
-    def cadastrar_cliente(self):
+    def cadastrar_usuario(self):
         print("Você selecionou a opção de cadastro.")
         nome = input("Digite seu nome completo: ")
+        cpf = input("Digite o seu CPF: ")
+
+        validador = ValidacaoCPF(cpf)
+        if not validador.validar():
+            print("CPF inválido. Cadastro não realizado.")
+            return
+        
         idade = input("Digite sua idade: ")
         telefone = input("Digite seu telefone: ")
         email = input("Digite seu email: ")
 
-        self.bd_clientes[nome] = {
-            "idade": idade, 
-            "telefone": telefone, 
-            "email": email
+        self.bd_clientes[cpf] = {
+            "Nome completo": nome,
+            "Idade": idade,
+            "Telefone": telefone,
+            "Email": email
         }
 
         print(f'{nome}, seu cadastro foi realizado com sucesso.')
 
-    def realizar_saque(self):
+    def login(self):
+        cpf = input("Digite seu CPF: ")
+        if cpf in self.bd_clientes:
+            self.cpf_usuario_atual = cpf
+            print(f"Login realizado com sucesso! Bem-vindo, {self.bd_clientes[cpf]['Nome completo']}.")
+        else:
+            print("Usuário não cadastrado.")
+
+    def verificar_conta(self):
+        if self.cpf_usuario_atual not in self.bd_contas:
+            print("Usuário não possui conta. Por favor, crie uma conta primeiro.")
+            return False
+        return True
+
+    def criar_conta(self):
+        if self.cpf_usuario_atual is None:
+            print("Por favor, faça login primeiro.")
+            return
+
+        if self.cpf_usuario_atual in self.bd_contas:
+            print("O usuário já possui uma conta.")
+        else:
+            numero_conta = random.randint(10000, 99999)
+            self.bd_contas[self.cpf_usuario_atual] = {
+                "Agência": self.AGENCIA,
+                "Número da conta": numero_conta
+            }
+            self.transacoes[self.cpf_usuario_atual] = []  
+            self.numero_saques[self.cpf_usuario_atual] = 0  
+            print(f'Conta criada com sucesso! Agência: {self.AGENCIA} | Número da Conta: {numero_conta}')
+
+    def sacar(self):
         print("Você selecionou a opção de saque.")
+        if not self.verificar_conta():
+            return
+        
+        saldo_atual = sum([valor for valor in self.transacoes[self.cpf_usuario_atual]])
+
         try:
             saque = float(input("Quanto você deseja sacar? "))
-            saldo_atual = sum([valor for valor, _ in self.lista])
 
             if saque > saldo_atual:
                 print("Operação falhou! Você não tem saldo suficiente.")
             elif saque > 500:
                 print("Operação falhou! O valor do saque não pode exceder R$500.")
-            elif self.numero_saques >= self.limite_saques:
+            elif self.numero_saques[self.cpf_usuario_atual] >= 10:
                 print("Operação falhou! Número máximo de saques já atingido.")
             else:
                 tempo_no_ato = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                self.lista.append((-saque, tempo_no_ato))
-                self.numero_saques += 1  
-                print(f'Saque de R${saque:.2f} realizado com sucesso às {tempo_no_ato}!')
+                self.transacoes[self.cpf_usuario_atual].append(-saque)
+                self.numero_saques[self.cpf_usuario_atual] += 1
+                print(f'{tempo_no_ato} - Saque de R${saque:.2f} realizado com sucesso!')
         except ValueError:
             print("Erro. Digite um valor válido.")
 
-    def realizar_deposito(self):
+    def depositar(self):
         print("Você selecionou a opção de depósito")
+        if not self.verificar_conta():
+            return
+
         try: 
             deposito = float(input("Qual valor deseja depositar? "))
             if deposito > 0: 
                 tempo_no_ato = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                self.lista.append((deposito, tempo_no_ato))
-                print(f'Depósito no valor de R${deposito:.2f} registrado às {tempo_no_ato}.')
+                self.transacoes[self.cpf_usuario_atual].append(deposito)
+                print(f'{tempo_no_ato} - Depósito no valor de R${deposito:.2f} registrado.')
             else:
                 print("Depósito inválido.")
         except ValueError:
             print("Erro. Digite um valor válido.")
 
-    def mostrar_extrato(self):
+    def extrato(self):
         print("Você selecionou a opção de extrato.")
-        if self.lista:
+        if not self.verificar_conta():
+            return
+
+        if self.transacoes[self.cpf_usuario_atual]:
             print("Extrato de operações:")
-            for i, (valor, tempo_no_ato) in enumerate(self.lista, 1):
+            for i, valor in enumerate(self.transacoes[self.cpf_usuario_atual], 1):
                 tipo = "Depósito" if valor > 0 else "Saque"
-                print(f"{tempo_no_ato} - {i}. {tipo}: R${abs(valor):.2f}")
-            saldo_atual = sum([valor for valor, _ in self.lista])
+                print(f"{i}. {tipo}: R${abs(valor):.2f}")
+            saldo_atual = sum(self.transacoes[self.cpf_usuario_atual])
             print(f'O saldo atual: R${saldo_atual:.2f}.')
         else:
             print("Nenhuma operação registrada.")
 
-    def listar_clientes(self):
+    def listar_usuarios(self):
         print("Lista de Clientes Cadastrados:")
         if self.bd_clientes:
-            for nome, dado in self.bd_clientes.items():    
-                idade = dado['idade']
-                telefone = dado['telefone']
-                email = dado['email']
-                print(f"Nome: {nome}, Idade: {idade}, Telefone: {telefone}, Email: {email}")
+            for cpf, dado in self.bd_clientes.items():    
+                nome = dado['Nome completo']
+                idade = dado['Idade']
+                telefone = dado['Telefone']
+                email = dado['Email']
+                print(f"Nome: {nome}, CPF: {cpf}, Idade: {idade}, Telefone: {telefone}, Email: {email}")
         else:
             print("Nenhum cliente cadastrado.")
 
-    def operacao(self, opcao):
-        if opcao == "C":
-            self.cadastrar_cliente()
-        elif opcao == "S":
-            self.realizar_saque()
-        elif opcao == "D":
-            self.realizar_deposito()
-        elif opcao == "E":
-            self.mostrar_extrato()
-        elif opcao == "L":
-            self.listar_clientes()
-        elif opcao == "Q":
-            print("Saindo do sistema...")
-            return False
+    def listar_contas(self):
+        print("Lista de Contas Cadastradas:")
+        if self.bd_contas:
+            for cpf, dados in self.bd_contas.items():    
+                agencia = dados['Agência']
+                numero_conta = dados['Número da conta']
+                nome = self.bd_clientes[cpf]['Nome completo']
+                print(f"Agência: {agencia}, Conta: {numero_conta}, Nome do usuário: {nome}, CPF: {cpf}")
         else:
-            print("Opção inválida! Tente novamente.")
-        
-        return True  
+            print("Nenhuma conta cadastrada.")
 
-    def executar(self):
+    def operacao(self):
         while True:
-            opcao = self.menu()  
-            if not self.operacao(opcao):  
+            opcao = self.menu()
+            if opcao == "l":
+                self.login()
+            elif opcao == "c":
+                self.cadastrar_usuario()
+            elif opcao == "s":
+                self.sacar()
+            elif opcao == "d":
+                self.depositar()
+            elif opcao == "e":
+                self.extrato()
+            elif opcao == "nc":
+                self.criar_conta()
+            elif opcao == "lu":
+                self.listar_usuarios()
+            elif opcao == "lc":
+                self.listar_contas()
+            elif opcao == "q":
+                print("Saindo do sistema...")
                 break
-            
+
 sistema = SistemaBancario()
-sistema.executar()
+sistema.operacao()
